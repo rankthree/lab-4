@@ -1,0 +1,67 @@
+<group name="sysmon,windows,malware,trojan_virlock,high_fidelity,">
+
+  <rule id="100500" level="15">
+    <if_sid>61603</if_sid>
+    <options>alert_by_email</options>
+    <field name="win.eventdata.image" type="pcre2">(?i)AppData[\\/]+(Local(Low)?|Roaming|Local[\\/]Temp)[\\/]+(WINDOWS[\\/]+)?(lsass|csrss|smss|services|winlogon)\.exe$</field>
+    <description>VirLock T1036.005: System process masquerading — $(win.eventdata.image) executed from AppData directory. Immediate investigation required.</description>
+    <mitre><id>T1036.005</id></mitre>
+    <group>defense_evasion,masquerading,virlock,ioc,</group>
+  </rule>
+
+  <rule id="100551" level="15">
+    <if_sid>61607</if_sid>
+    <options>alert_by_email</options>
+    <field name="win.eventdata.image" type="pcre2">(?i)[\\/]+(lsass|csrss|smss|services|winlogon|iexplorer?)\.exe$</field>
+    <field name="win.eventdata.imageLoaded" type="pcre2">(?i)[\\/]+msvbvm60\.dll$</field>
+    <description>VirLock CRITICAL T1055: VB6 runtime ($(win.eventdata.imageLoaded)) loaded by system process $(win.eventdata.image).</description>
+    <mitre><id>T1055</id><id>T1036.005</id></mitre>
+    <group>defense_evasion,process_injection,critical,virlock,ioc,pci_dss_5.3,nist_800-53_SI-3,hipaa_164.312b,</group>
+  </rule>
+
+  <rule id="100502" level="14">
+    <if_sid>61613</if_sid>
+    <options>alert_by_email</options>
+    <field name="win.eventdata.targetFilename" type="pcre2">(?i)(^[A-Z]:[\\/]+(Data\s+[^\\]{3,30}|xk)\.exe$|Start Menu[\\/]+Programs[\\/]+StartUp[\\/]+Empty\.pif$|Windows[\\/]+(xk\.exe|(SysWOW64|System32)[\\/]+(iexplorer?\.exe|Mig2?\.scr|Mig~mig\.SCR|shell\.exe))$)</field>
+    <description>VirLock T1091: Malicious payload dropped at $(win.eventdata.targetFilename). Self-replication or persistence attempt.</description>
+    <mitre><id>T1091</id></mitre>
+    <group>lateral_movement,persistence,ioc,virlock,</group>
+  </rule>
+
+  <rule id="100503" level="15">
+    <if_sid>61615</if_sid>
+    <options>alert_by_email</options>
+    <field name="win.eventdata.targetObject" type="pcre2">(?i)(CurrentVersion[\\/]+Run[\\/]+[^\\/]+|(Wow6432Node[\\/]+)?Microsoft[\\/]+Windows\s*NT[\\/]+CurrentVersion[\\/]+Winlogon[\\/]+(Userinit|Shell)$|SafeBoot([\\/]+Minimal)?[\\/]+AlternateShell|Control Panel[\\/]+Desktop[\\/]+SCRNSAVE\.EXE)</field>
+    <field name="win.eventdata.details" type="pcre2">(?i)(xk\.exe|\.pif|AppData[\\/]+(Local(Low)?|Roaming|Local[\\/]Temp)|Mig~?mig\.SCR)</field>
+    <description>VirLock T1562.009: Critical autostart registry key $(win.eventdata.targetObject) modified to execute payload at $(win.eventdata.details).</description>
+    <mitre><id>T1562.009</id><id>T1546.002</id></mitre>
+    <group>persistence,registry,virlock,</group>
+  </rule>
+
+  <rule id="100504" level="14">
+    <if_sid>61615</if_sid>
+    <field name="win.eventdata.targetObject" type="pcre2">(?i)Policies[\\/]+(Microsoft[\\/]+Windows[\\/]+System[\\/]+DisableCMD|System[\\/]+DisableRegistryTools)</field>
+    <field name="win.eventdata.details" type="pcre2">^[1-9][0-9]*$</field>
+    <description>VirLock T1562.001: Defense evasion detected. System policy $(win.eventdata.targetObject) set to $(win.eventdata.details) to block admin tools.</description>
+    <mitre><id>T1562.001</id></mitre>
+    <group>defense_evasion,virlock,</group>
+  </rule>
+
+  <rule id="100505" level="13">
+    <if_sid>61607</if_sid>
+    <field name="win.eventdata.imageLoaded" type="pcre2">(?i)(?=.*[\/]+(Wldp|PROPSYS)\.dll$)(?!.*[\/]+(System32|SysWOW64|WinSxS)[\/])</field>
+    <description>VirLock T1574.002: WDAC policy bypass attempt. Security DLL loaded from non-system path.</description>
+    <mitre><id>T1574.002</id></mitre>
+    <group>defense_evasion,dll_hijacking,virlock,</group>
+  </rule>
+
+  <rule id="100506" level="15" frequency="4" timeframe="300" ignore="600">
+    <if_matched_group>virlock</if_matched_group>
+    <same_field>win.system.computer</same_field>
+    <options>alert_by_email</options>
+    <description>OUTBREAK ALERT: Multiple VirLock behaviors (Masquerading, Persistence, Evasion) detected on host $(win.system.computer). Action: ISOLATE IMMEDIATELY.</description>
+    <mitre><id>T1036.005</id><id>T1547.001</id></mitre>
+    <group>correlation,malware,critical,virlock,</group>
+  </rule>
+
+</group>
