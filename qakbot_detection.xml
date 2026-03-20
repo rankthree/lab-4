@@ -35,12 +35,31 @@
     <description>Tuning: Suppress benign Background Activity Moderator (BAM) registry updates by UAC consent.exe.</description>
   </rule>
 
+  <rule id="100205" level="10">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)[\\/](cmd|powershell|wscript|cscript)\.exe$</field>
+    <field name="win.eventdata.parentImage" type="pcre2">(?i)[\\/](excel|winword|outlook|explorer)\.exe$</field>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)\.lnk|\.iso|\.zip|\.vbs</field>
+    <description>Phase 0: Suspicious script interpreter spawned by Office/Explorer.</description>
+    <mitre><id>T1204</id><id>T1059</id></mitre>
+    <group>initial_access,qbot_stage0,qbot_killchain</group>
+  </rule>
+
   <rule id="100210" level="8">
     <if_sid>61603</if_sid>
     <field name="win.eventdata.image" type="pcre2">(?i)[\\/](Downloads|Desktop|AppData|Temp)[\\/].+\.(bin|dat|jpg|png|tmp)\.exe$</field>
-    <description>Phase 1 (Initial Access T1036.007): Suspicious double-extension executable from user directory.</description>
+    <description>Phase 1: Suspicious double-extension executable from user directory.</description>
     <mitre><id>T1036.007</id></mitre>
     <group>qbot_stage1,qbot_killchain</group>
+  </rule>
+
+  <rule id="100211" level="12">
+    <if_sid>61613</if_sid>
+    <field name="win.eventdata.targetFilename" type="pcre2">(?i)AppData\\[a-zA-Z0-9]+\\Microsoft\\[a-zA-Z0-9]{6,15}\.exe$</field>
+    <field name="win.eventdata.image" negate="yes" type="pcre2">(?i)(msiexec|wuauclt|TiWorker|OneDrive|setup|MicrosoftEdgeUpdate|ClickToRun)\.exe$</field>
+    <description>Payload Staging: Randomized executable dropped in AppData/Microsoft.</description>
+    <mitre><id>T1036.005</id></mitre>
+    <group>malware_drop,qbot_stage1,qbot_killchain</group>
   </rule>
 
   <rule id="100220" level="13">
@@ -48,154 +67,32 @@
     <field name="win.eventdata.image" type="pcre2">(?i)[\\/](AppData|Temp|Downloads)[\\/].*\.exe$</field>
     <field name="win.eventdata.parentImage" type="pcre2">(?i)[\\/](AppData|Temp|Downloads)[\\/].*\.exe$</field>
     <field name="win.eventdata.commandLine" type="pcre2">(?i)\.exe["']?\s+[\/\-][Cc](\s|$)</field>
-    <description>Phase 2 (Execution): Executable spawned another executable from the same suspicious directory with a flag-driven invocation (/C).</description>
-    <mitre><id>T1059</id><id>T1106</id></mitre>
-    <group>malware_exec,defense_evasion,qbot_stage1,qbot_killchain</group>
-  </rule>
-
-  <rule id="100211" level="12">
-    <if_sid>61613</if_sid>
-    <field name="win.eventdata.targetFilename" type="pcre2">(?i)AppData\\[a-zA-Z0-9]+\\Microsoft\\[a-zA-Z0-9]{6,15}\.exe$</field>
-    <field name="win.eventdata.image" negate="yes" type="pcre2">(?i)(msiexec|wuauclt|TiWorker|OneDrive|setup|MicrosoftEdgeUpdate|ClickToRun)\.exe$</field>
-    <description>Payload Staging T1036.005: Randomized executable dropped in AppData/Microsoft.</description>
-    <mitre><id>T1036.005</id></mitre>
-    <group>malware_drop,qbot_stage1,qbot_killchain</group>
-  </rule>
-
-  <rule id="100221" level="12">
-    <if_sid>61607</if_sid>
-    <field name="win.eventdata.imageLoaded" type="pcre2">(?i)[\\/](Downloads|Desktop|AppData|Temp)[\\/].*\.(bin|dat|jpg|png|tmp)\.exe$</field>
-    <field name="win.eventdata.signatureStatus" type="pcre2">(?i)^(Expired|Invalid|Unavailable)$</field>
-    <description>Phase 1/2 (Staging T1036.007): Payload with double-extension and Expired/Invalid signature loaded into memory.</description>
-    <mitre><id>T1036.007</id><id>T1574.002</id></mitre>
-    <group>malware_staging,qbot_stage1,qbot_killchain</group>
-  </rule>
-
-  <rule id="100222" level="12">
-    <if_sid>61607</if_sid>
-    <field name="win.eventdata.imageLoaded" type="pcre2">(?i)[\\/](Downloads|Desktop|AppData|Temp)[\\/][^\\]+\.exe$</field>
-    <field name="win.eventdata.signed" type="pcre2">^false$</field>
-    <description>Phase 2 (In-Memory Staging T1574.002): Detects an unsigned executable loaded into memory from a user directory (Possible Self-Load/Side-Load).</description>
-    <mitre><id>T1574.002</id></mitre>
-    <group>malware_staging,qbot_stage1,qbot_killchain</group>
-  </rule>
-
-  <rule id="100820" level="10">
-    <if_sid>61607</if_sid>
-    <field name="win.eventdata.image" type="pcre2">(?i)[\\/](AppData|Temp|Downloads|ProgramData)[\\/].*\.exe$</field>
-    <field name="win.eventdata.imageLoaded" type="pcre2">(?i)[\\/](amsi|urlmon|wininet|winhttp)\.dll$</field>
-    <description>Phase 4 (Network Prep T1105): Untrusted payload loaded network or security-related DLLs to prepare for C2 or evasion.</description>
-    <mitre><id>T1105</id><id>T1562.001</id></mitre>
-    <group>defense_evasion,qbot_stage4,qbot_killchain</group>
-  </rule>
-
-  <rule id="100825" level="14" timeframe="1800" ignore="1800">
-    <if_sid>100820</if_sid>
-    <if_matched_group>qbot_stage1</if_matched_group>
-    <same_field>win.system.computer</same_field>
-    <options>alert_by_email</options>
-    <description>QakBot Escalation Confirmed: Stage 1 staging followed by network/evasion DLL load on the same host within 30 minutes.</description>
-    <group>defense_evasion,high_confidence,qbot_killchain</group>
-  </rule>
-
-  <rule id="100263" level="13">
-    <if_sid>61603</if_sid>
-    <field name="win.eventdata.image" type="pcre2">(?i)[\\/](fodhelper|eventvwr|sdclt|computerdefaults|wsreset|cmstp|mmc)\.exe$</field>
-    <field name="win.eventdata.parentImage" type="pcre2">(?i)[\\/](Downloads|Desktop|AppData|Temp)[\\/]</field>
-    <description>UAC Bypass T1548.002: Auto-elevation candidate spawned by untrusted payload. Silent privilege escalation detected.</description>
-    <mitre><id>T1548.002</id></mitre>
-    <group>privilege_escalation,qbot_stage2,qbot_killchain</group>
-  </rule>
-
-  <rule id="100262" level="12">
-    <if_sid>61603</if_sid>
-    <field name="win.eventdata.image" type="pcre2">(?i)[\\/](System32|SysWOW64)[\\/](WerFault|slui|wermgr)\.exe$</field>
-    <field name="win.eventdata.parentImage" type="pcre2">(?i)[\\/](AppData|Temp|Downloads)[\\/]</field>
-    <description>Process Hollowing Prep T1055.012: System process spawned by untrusted payload.</description>
-    <group>qbot_stage2,process_injection,qbot_killchain</group>
-  </rule>
-
-  <rule id="100735" level="14">
-    <if_sid>61612</if_sid>
-    <field name="win.eventdata.sourceImage" type="pcre2">(?i)^\<unknown process\>$</field>
-    <description>Fileless Execution T1055: Memory access from unbacked process (Reflective Injection/Process Hollowing).</description>
-    <mitre><id>T1055</id></mitre>
-    <group>qbot_stage2,defense_evasion,qbot_killchain</group>
+    <description>Phase 2: Executable spawned another executable from suspicious directory (/C).</description>
+    <group>malware_exec,qbot_stage1,qbot_killchain</group>
   </rule>
 
   <rule id="100214" level="10">
     <if_sid>61603</if_sid>
     <field name="win.eventdata.image" type="pcre2">(?i)[\\/]cmd\.exe$</field>
     <field name="win.eventdata.commandLine" type="pcre2">(?i)ping\s.*[\/\-]n\s+\d{1,3}\s+127\.0\.0\.1</field>
+    <description>Anti-Sandbox: Malware spawned cmd ping-delay.</description>
+    <group>defense_evasion,qbot_killchain</group>
+  </rule>
+
+  <rule id="100262" level="12">
+    <if_sid>61603</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)[\\/](System32|SysWOW64)[\\/](WerFault|slui|wermgr)\.exe$</field>
     <field name="win.eventdata.parentImage" type="pcre2">(?i)[\\/](AppData|Temp|Downloads)[\\/]</field>
-    <description>Anti-Sandbox T1497.003: Malware spawned cmd ping-delay to evade dynamic analysis.</description>
-    <mitre><id>T1497.003</id></mitre>
-    <group>defense_evasion,anti_forensics,qbot_killchain</group>
+    <description>Process Hollowing Prep: System process spawned by untrusted payload.</description>
+    <group>qbot_stage2,process_injection,qbot_killchain</group>
   </rule>
 
   <rule id="100510" level="14">
     <if_sid>61603</if_sid>
     <field name="win.eventdata.image" type="pcre2">(?i)schtasks\.exe$</field>
     <field name="win.eventdata.commandLine" type="pcre2">(?i)(?=.*[\/\-]Create)(?=.*[\/\-]RU\s+.*SYSTEM)(?=.*[\/\-]tr\s+)(?=.*[\/\-]I\s+[a-zA-Z0-9]+)</field>
-    <options>alert_by_email</options>
-    <description>Detects QakBot malware establishing persistence via schtasks.exe by creating a task executing as SYSTEM with a randomized payload instance flag (/I).</description>
-    <mitre><id>T1053.005</id><id>T1548</id></mitre>
-    <group>persistence,privilege_escalation,qbot_stage3,qbot_killchain,qbot_persistence_trigger,pci_dss_10.2.7</group>
-  </rule>
-
-  <rule id="100511" level="14">
-    <if_sid>100510</if_sid>
-    <field name="win.eventdata.commandLine" type="pcre2">(?i)(?=.*[\/\-]SC\s+ONCE)(?=.*[\/\-]Z\b)</field>
-    <description>High-confidence QakBot persistence: SYSTEM task, /SC ONCE, and self-delete (/Z) — full scheduler IOC set confirmed.</description>
-    <mitre><id>T1053.005</id><id>T1070.004</id></mitre>
-    <group>persistence,defense_evasion,qbot_stage3,qbot_killchain,qbot_persistence_trigger</group>
-  </rule>
-
-  <rule id="100517" level="12">
-    <if_group>sysmon</if_group>
-    <field name="win.system.eventID">^11$</field>
-    <field name="win.eventdata.image" type="pcre2">(?i)svchost\.exe$</field>
-    <field name="win.eventdata.targetFilename" type="pcre2">(?i)System32\\\\Tasks\\\\[a-zA-Z0-9]{6,15}$</field>
-    <description>Detects Task Scheduler (svchost.exe) directly dropping a randomized task file, bypassing schtasks.exe (COM API abuse).</description>
-    <mitre><id>T1053.005</id></mitre>
+    <description>QakBot Persistence: SYSTEM task created with random flag (/I).</description>
     <group>persistence,qbot_stage3,qbot_killchain,qbot_persistence_trigger</group>
-  </rule>
-
-  <rule id="100516" level="12">
-    <if_group>sysmon</if_group>
-    <field name="win.system.eventID" type="pcre2">^(12|13|14)$</field>
-    <field name="win.eventdata.image" type="pcre2">(?i)svchost\.exe$</field>
-    <field name="win.eventdata.targetObject" type="pcre2">(?i)Schedule\\\\TaskCache\\\\Tree\\\\[a-zA-Z0-9]{6,15}\\\\(Index|Id|Tasks|SD)$</field>
-    <description>Detects the Task Scheduler service (svchost.exe) modifying TaskCache registry keys for a randomized task name, confirming OS-level persistence registration.</description>
-    <mitre><id>T1053.005</id><id>T1112</id></mitre>
-    <group>persistence,registry,qbot_stage3,qbot_killchain</group>
-  </rule>
-
-  <rule id="100261" level="11">
-    <if_sid>61603</if_sid>
-    <field name="win.eventdata.image" type="pcre2">(?i)[\\/]nslookup\.exe$</field>
-    <field name="win.eventdata.commandLine" type="pcre2">(?i)_ldap\._tcp\.dc\._msdcs</field>
-    <description>AD Recon T1018: Domain Controller SRV query via nslookup. Pre-lateral-movement indicator.</description>
-    <mitre><id>T1018</id></mitre>
-    <group>discovery,qbot_stage4,qbot_killchain</group>
-  </rule>
-
-  <rule id="100506" level="14">
-    <if_group>sysmon</if_group>
-    <field name="win.system.eventID">^22$</field>
-    <list field="win.eventdata.queryName" lookup="match_key">etc/lists/qakbot_c2_domains</list>
-    <description>Phase 5 (C2 Beacon T1071): DNS resolution detected via Threat Intel CDB list.</description>
-    <mitre><id>T1071</id></mitre>
-    <group>c2,network,ioc,pci_dss_10.6.1,nist_800_53_si4,qbot_killchain</group>
-  </rule>
-
-  <rule id="100509" level="14">
-    <if_group>sysmon</if_group>
-    <field name="win.system.eventID">^22$</field>
-    <field name="win.eventdata.image" type="pcre2">(?i)^\<unknown process\>$</field>
-    <description>Fileless Evasion T1071/T1055: DNS query requested by a short-lived or unbacked memory process (Image: unknown process). High probability of malware self-termination evasion.</description>
-    <mitre><id>T1071</id><id>T1055</id></mitre>
-    <group>defense_evasion,c2,fileless,qbot_stage2,qbot_killchain</group>
   </rule>
 
   <rule id="100514" level="15">
@@ -203,18 +100,57 @@
     <field name="win.eventdata.parentImage" type="pcre2">(?i)svchost\.exe$</field>
     <field name="win.eventdata.parentCommandLine" type="pcre2">(?i)Schedule</field>
     <field name="win.eventdata.commandLine" type="pcre2">(?i)\s+[\/\-]I\s+[a-zA-Z0-9]{6,15}</field>
-    <description>[CRITICAL] Execution: Task Scheduler initiated QakBot payload using flag (/I).</description>
+    <description>[CRITICAL] Task Scheduler initiated QakBot payload execution.</description>
     <group>persistence,execution,critical,qbot_killchain</group>
   </rule>
 
-  <rule id="100530" level="16" timeframe="86400" ignore="3600">
-    <if_sid>100514</if_sid> 
-    <if_matched_group>qbot_stage1</if_matched_group> 
-    <if_matched_group>qbot_persistence_trigger</if_matched_group> 
+  <rule id="100264" level="10">
+    <if_sid>92031</if_sid>
+    <field name="win.eventdata.commandLine" type="pcre2">(?i)net1?\s+accounts</field>
+    <field name="win.eventdata.integrityLevel">System</field>
+    <description>Suspicious Account Policy Discovery (net accounts) executed as SYSTEM.</description>
+    <mitre><id>T1087</id></mitre>
+    <group>discovery,qbot_stage4,qbot_killchain</group>
+  </rule>
+
+  <rule id="100265" level="12" timeframe="60">
+    <if_matched_sid>100264</if_matched_sid>
     <same_field>win.system.computer</same_field>
-    <options>alert_by_email</options>
-    <description>CONFIRMED COMPROMISE: QakBot Kill-Chain detected (Initial Access + Persistence Creation -> Persistence Execution).</description>
-    <mitre><id>T1053.005</id><id>T1036</id></mitre>
+    <description>QakBot Automated Recon: Multiple discovery commands in a short window.</description>
+    <group>discovery,qbot_stage4,qbot_killchain,high_fidelity</group>
+  </rule>
+
+  <rule id="100270" level="12">
+    <if_sid>92201</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)SysWOW64\\WindowsPowerShell</field>
+    <field name="win.eventdata.user">NT AUTHORITY\\SYSTEM</field>
+    <description>QakBot Stage 4: 32-bit PowerShell Env Check as SYSTEM (Prep for Script).</description>
+    <mitre><id>T1059.001</id></mitre>
+    <group>execution,qbot_stage4,qbot_killchain</group>
+  </rule>
+
+  <rule id="100275" level="15" timeframe="300">
+    <if_sid>100270</if_sid>
+    <if_matched_sid>100264</if_matched_sid>
+    <same_field>win.system.computer</same_field>
+    <description>CRITICAL: Discovery followed by PowerShell execution on same host.</description>
+    <group>qbot_killchain,critical,incident_response</group>
+  </rule>
+
+  <rule id="100506" level="14">
+    <if_group>sysmon</if_group>
+    <field name="win.system.eventID">^22$</field>
+    <list field="win.eventdata.queryName" lookup="match_key">etc/lists/qakbot_c2_domains</list>
+    <description>Phase 5 (C2 Beacon): DNS resolution via Threat Intel list.</description>
+    <group>c2,network,qbot_killchain</group>
+  </rule>
+
+  <rule id="100530" level="16" timeframe="86400" ignore="3600">
+    <if_sid>100514</if_sid>
+    <if_matched_group>qbot_stage1</if_matched_group>
+    <if_matched_group>qbot_persistence_trigger</if_matched_group>
+    <same_field>win.system.computer</same_field>
+    <description>CONFIRMED COMPROMISE: Full QakBot Kill-Chain detected (Initial -> Persistence -> Exec).</description>
     <group>kill_chain_full,critical,incident_response</group>
   </rule>
 
